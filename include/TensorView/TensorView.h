@@ -39,8 +39,8 @@ public:
         std::copy(stride, stride + ndim, stride_);
     }
 
-    template<class BinaryOp, enable_if_t<is_operation_v<BinaryOp>, int> = 0>
-    Type& operator=(const BinaryOp& op) {
+    template<class TDeferredOperation, enable_if_t<is_operation_v<TDeferredOperation>, int> = 0>
+    Type& operator=(const TDeferredOperation& op) {
         op.apply(*this);
     }
 
@@ -203,7 +203,7 @@ public:
     }
 
     template<class Func>
-    auto map(Func&& f) {
+    auto map(Func&& f) const {
         return make_unary_op(std::forward<Func>(f), *this);
     }
 
@@ -214,8 +214,8 @@ public:
     }
 
     template<class Func, class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
-    auto map(Func&& f, const TensorViewRhs& rhs) {
-        return make_binary_op(std::forward<Func>(f), *this, rhs);
+    auto map(Func&& f, const TensorViewRhs& rhs) const {
+        return make_reduce_operation(std::forward<Func>(f), *this, rhs);
     }
 
 
@@ -231,12 +231,18 @@ public:
     void reduce(Func&& f,
                 TensorViewDst dst,
                 size_t axis,
-                typename TensorViewDst::ValueType initial_value = typename TensorViewDst::ValueType{}) {
+                typename TensorViewDst::ValueType initial_value = typename TensorViewDst::ValueType{}) const {
         static_assert(NumDims == TensorViewDst::NumDims + 1, "Incorrect number of dims of destination tensor");
 
         dst.assign_(initial_value);
         ReduceDim<NumDims, NumDims - 1>::impl(std::forward<Func>(f), *this, dst, NumDims - axis);
     }
+
+    template<class Func, class TInitial = ValueType>
+    auto reduce(Func&& f, size_t axis, TInitial initial_value) const {
+        return make_reduce_operation(std::forward<Func>(f), *this, axis, initial_value);
+    }
+
 
     template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
     auto operator+(const TensorViewRhs& rhs) {

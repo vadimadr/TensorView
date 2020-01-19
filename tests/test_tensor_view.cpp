@@ -418,5 +418,17 @@ TEST_F(ReduceOperation, reduce_axis_min) {
     EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
 }
 
+TEST_F(ReduceOperation, reduce_axis1_sum_deferred) {
+    std::vector<float> dst_data(3 * 2);
+    auto dst_view = make_view(dst_data.data(), {3, 2});
+
+    dst_view = view.reduce([&](float x, float y) {
+        return x + y;
+    }, 1, 0);
+
+    std::vector<float> data_expected = {2, 4, 10, 12, 18, 20};
+    EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
+}
+
 
 }

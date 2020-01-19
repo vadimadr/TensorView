@@ -167,7 +167,7 @@ ElementWiseOperation<
         typename BroadcastTensors<TensorViewLhs, TensorViewRhs>::ResultType,
         typename BroadcastTensors<TensorViewRhs, TensorViewLhs>::ResultType,
         F>
-make_binary_op(const F& f, const TensorViewLhs& first, const TensorViewRhs& second) {
+make_reduce_operation(const F& f, const TensorViewLhs& first, const TensorViewRhs& second) {
     TV_ASSERT(check_shapes(first, second), "Shapes of input tensors are not compatible")
     auto first_broadcasted = BroadcastTensors<TensorViewLhs, TensorViewRhs>::impl(first, second);
     auto second_broadcasted = BroadcastTensors<TensorViewRhs, TensorViewLhs>::impl(second, first);
@@ -203,6 +203,36 @@ template<class F, class TensorViewSrc>
 UnaryOperation<TensorViewSrc, F>
 make_unary_op(F&& f, const TensorViewSrc& first) {
     return {first, std::forward<F>(f)};
+}
+
+template<class TensorViewLhs, class TInitial, class TFunc>
+class ReduceOperation {
+public:
+    using SrcType = TensorViewChecked<TensorViewLhs>;
+
+    TensorViewLhs src_;
+    TFunc func_;
+    size_t axis_;
+    TInitial initial_;
+
+    template<class TensorViewDst>
+    void apply(TensorViewDst& dst) const {
+        static_assert(TensorViewDst::NumDims + 1 == TensorViewLhs::NumDims, "Incorrect number of dims of dst tensor");
+        auto initial = static_cast<typename TensorViewDst::ValueType>(initial_);
+        src_.reduce(func_, dst, axis_, initial);
+    }
+
+    ReduceOperation(const TensorViewLhs& lhs, size_t axis, TFunc f, TInitial initial) :
+            src_(lhs),
+            axis_(axis),
+            func_(f),
+            initial_(initial) {}
+};
+
+template<class F, class TensorViewSrc, class TInitial>
+ReduceOperation<TensorViewSrc, TInitial, F>
+make_reduce_operation(F&& f, const TensorViewSrc& src, size_t axis, TInitial initial_value) {
+    return {src, axis, std::forward<F>(f), initial_value};
 }
 
 
@@ -294,6 +324,10 @@ struct is_operation : std::false_type {
 
 template<class T1, class T2, class T3>
 struct is_operation<ElementWiseOperation<T1, T2, T3>> : std::true_type {
+};
+
+template<class T1, class T2, class T3>
+struct is_operation<ReduceOperation<T1, T2, T3>> : std::true_type {
 };
 
 template<class T1, class T2>
