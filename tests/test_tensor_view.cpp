@@ -322,4 +322,101 @@ TEST_F(ModifyingData, mul_by_const_permuted) {
     EXPECT_THAT(data2_, ElementsAreArray(expected));
 }
 
+class ReduceOperation : public BasicOperations {
+};
+
+
+TEST_F(ReduceOperation, all_reduce_sum) {
+    auto sum = view.reduce([&](auto x, auto y) {
+        return x + y;
+    });
+
+    EXPECT_THAT(sum, Eq(66));
+}
+
+TEST_F(ReduceOperation, all_reduce_sum_transposed) {
+    auto view_transposed = view.permute(2, 1, 0);
+    auto sum = view_transposed.reduce([&](auto x, auto y) {
+        return x + y;
+    });
+
+    EXPECT_THAT(sum, Eq(66));
+}
+
+TEST_F(ReduceOperation, all_reduce_prod_initial_value) {
+    auto view_transposed = view(1, 0);
+    auto prod = view_transposed.reduce([&](auto x, auto y) {
+        return x * y;
+    }, 1);
+
+    EXPECT_THAT(prod, Eq(20));
+}
+
+template<class T>
+struct Foo {
+    template<class K, enable_if_t<is_tensor_view_v<K>, int> = 0>
+    static int bar(K k) {
+        return 0;
+    }
+
+    static int bar(T t) {
+        return 1;
+    }
+};
+
+TEST_F(ReduceOperation, foobar) {
+    int j = 0;
+    EXPECT_THAT(Foo<int>::bar(j), Eq(1));
+    EXPECT_THAT(Foo<int>::bar(view), Eq(0));
+}
+
+TEST_F(ReduceOperation, reduce_axis0_sum) {
+    std::vector<float> dst_data(2 * 2);
+    auto dst_view = make_view(dst_data.data(), {2, 2});
+
+    view.reduce([&](float x, float y) {
+        return x + y;
+    }, dst_view, 0);
+
+    std::vector<float> data_expected = {12, 15, 18, 21};
+    EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
+}
+
+TEST_F(ReduceOperation, reduce_axis1_sum) {
+    std::vector<float> dst_data(3 * 2);
+    auto dst_view = make_view(dst_data.data(), {3, 2});
+
+    view.reduce([&](float x, float y) {
+        return x + y;
+    }, dst_view, 1);
+
+    std::vector<float> data_expected = {2, 4, 10, 12, 18, 20};
+    EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
+}
+
+TEST_F(ReduceOperation, reduce_axis2_sum) {
+    std::vector<float> dst_data(3 * 2);
+    auto dst_view = make_view(dst_data.data(), {3, 2});
+
+    view.reduce([&](float x, float y) {
+        return x + y;
+    }, dst_view, 2);
+
+    std::vector<float> data_expected = {1, 5, 9, 13, 17, 21};
+    EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
+}
+
+TEST_F(ReduceOperation, reduce_axis_min) {
+    std::vector<float> dst_data(3 * 2);
+    auto dst_view = make_view(dst_data.data(), {3, 2});
+
+    view.reduce([&](float x, float y) {
+        return std::min(x, y);
+    }, dst_view, 1, std::numeric_limits<float>::max());
+
+    std::vector<float> data_expected = {0, 1, 4, 5, 8, 9};
+    EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
+}
+
+
 }

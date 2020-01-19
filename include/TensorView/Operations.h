@@ -59,7 +59,7 @@ template<>
 class ElementWiseOpImpl<1> {
 public:
     template<class F, class TensorViewLhs, class TensorViewRhs, class TensorViewDst>
-    static void impl(F f, TensorViewLhs first, TensorViewRhs second, TensorViewDst dst, size_t trivial_dim) {
+    static void impl(F&& f, TensorViewLhs first, TensorViewRhs second, TensorViewDst dst, size_t trivial_dim) {
         if (trivial_dim == 1) {
             std::transform(first.data(), first.data() + first.num_elements(), second.data(), dst.data(), f);
             return;
@@ -117,12 +117,12 @@ public:
 
 
     template<class F>
-    static void impl(F f, TensorViewLhs first, TensorViewRhs second) {
+    static void impl(F&& f, TensorViewLhs first, TensorViewRhs second) {
         static_assert(LhsType::NumDims >= RhsType::NumDims, "Lhs tensor ndim must be greater or equal than rhs' one");
         TV_ASSERT(check_shapes(first, second), "Shapes of input tensors are not compatible")
         auto second_broadcasted = BroadcastTensors<TensorViewLhs, TensorViewRhs>::impl(first, second);
         size_t trivial_dim = find_first_trivial_dim(first, second_broadcasted);
-        ElementWiseOpImpl<LhsType::NumDims>::impl(f, first, second_broadcasted, first, trivial_dim);
+        ElementWiseOpImpl<LhsType::NumDims>::impl(std::forward<F>(f), first, second_broadcasted, first, trivial_dim);
     }
 };
 
@@ -201,8 +201,8 @@ public:
 
 template<class F, class TensorViewSrc>
 UnaryOperation<TensorViewSrc, F>
-make_unary_op(const F& f, const TensorViewSrc& first) {
-    return {first, f};
+make_unary_op(F&& f, const TensorViewSrc& first) {
+    return {first, std::forward<F>(f)};
 }
 
 
@@ -238,28 +238,50 @@ public:
     }
 };
 
-template<size_t N>
+template<size_t N, size_t M>
 class ReduceDim {
 public:
-    template<class F, class TTensorViewSrc, class TTensorViewDst, class T>
-    static void impl(F&& f, TTensorViewSrc src, TTensorViewDst dst, size_t reduce_dim) {
+    template<class F, class TTensorViewSrc, class TTensorViewDst>
+    static void impl(F&& f, const TTensorViewSrc& src, TTensorViewDst dst, size_t reduce_dim) {
         for (int i = 0; i < src.size(0); ++i) {
             if (reduce_dim == N) {
-                return ReduceDim<N - 1>::impl(std::forward<F>(f), src.at(i), dst, reduce_dim);
+                ReduceDim<N - 1, M>::impl(f, src.at(i), dst, reduce_dim);
             } else {
-                return ReduceDim<N - 1>::impl(std::forward<F>(f), src.at(i), dst.at(i), reduce_dim);
+                ReduceDim<N - 1, M - 1>::impl(f, src.at(i), dst.at(i), reduce_dim);
             }
         }
     }
 };
 
+template<size_t N>
+class ReduceDim<N, N> {
+public:
+    template<class F, class TTensorViewSrc, class TTensorViewDst>
+    static void impl(F&& f, const TTensorViewSrc& src, TTensorViewDst dst, size_t reduce_dim) {
+        for (int i = 0; i < src.size(0); ++i) {
+            ReduceDim<N - 1, N - 1>::impl(f, src.at(i), dst.at(i), reduce_dim);
+        }
+    }
+};
+
 template<>
-class ReduceDim<1> {
+class ReduceDim<1, 0> {
 public:
     template<class F, class TTensorViewSrc, class TResult>
-    static void impl(F&& f, TTensorViewSrc src, TResult& dst, size_t reduce_dim) {
+    static void impl(F&& f, const TTensorViewSrc& src, TResult& dst, size_t reduce_dim) {
         for (int i = 0; i < src.size(0); ++i) {
             dst = f(dst, src.at(i));
+        }
+    }
+};
+
+template<>
+class ReduceDim<1, 1> {
+public:
+    template<class F, class TTensorViewSrc, class TTensorViewDst>
+    static void impl(F&& f, const TTensorViewSrc& src, TTensorViewDst dst, size_t reduce_dim) {
+        for (int i = 0; i < src.size(0); ++i) {
+            dst.at(i) = f(dst.at(i), src.at(i));
         }
     }
 };

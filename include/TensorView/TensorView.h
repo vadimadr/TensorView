@@ -114,6 +114,10 @@ public:
         }, *this, rhs);
     }
 
+    void assign_(ValueType value) {
+        map_([value](const ValueType& val) { return value; });
+    }
+
     template<class... Ts>
     Type permute(Ts... ts) {
         static_assert(sizeof...(Ts) == NumDims, "Number of arguments to permute function must be NumDims");
@@ -192,43 +196,28 @@ public:
         return reduce(max_fn);
     }
 
-    template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
-    auto operator+(const TensorViewRhs& rhs) {
-        return make_binary_op(std::plus<ValueType>(), *this, rhs);
-    }
-
-    template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
-    Type& operator+=(const TensorViewRhs& rhs) {
-        ElementWiseInplaceOp<Type, TensorViewRhs>::impl(std::plus<ValueType>(), *this, rhs);
+    template<class Func>
+    Type& map_(Func&& f) {
+        UnaryInplaceOp<Type>::impl(std::forward<Func>(f), *this);
         return *this;
     }
 
-    Type& operator*=(ValueType c) {
-        ValueType c_cast = static_cast<ValueType>(c);
-        using namespace std::placeholders;
-        UnaryInplaceOp<Type>::impl(std::bind(std::multiplies<ValueType>(), c_cast, _1), *this);
+    template<class Func>
+    auto map(Func&& f) {
+        return make_unary_op(std::forward<Func>(f), *this);
+    }
+
+    template<class Func, class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
+    Type& map_(Func&& f, const TensorViewRhs& rhs) {
+        ElementWiseInplaceOp<Type, TensorViewRhs>::impl(std::forward<Func>(f), *this, rhs);
         return *this;
     }
 
-    auto operator*(ValueType c) {
-        ValueType c_cast = static_cast<ValueType>(c);
-        using namespace std::placeholders;
-        return make_unary_op(std::bind(std::multiplies<ValueType>(), c_cast, _1), *this);
+    template<class Func, class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
+    auto map(Func&& f, const TensorViewRhs& rhs) {
+        return make_binary_op(std::forward<Func>(f), *this, rhs);
     }
 
-    friend std::ostream& operator<<<Type>(std::ostream&, const Type&);
-
-private:
-    T* data_ptr_;
-    size_t shape_[ndim];
-    size_t stride_[ndim];
-
-    int deduce_maxw() const {
-        return reduce([](const size_t& a, const ValueType& b) {
-            auto i = print_element(b);
-            return std::max(a, i.size());
-        }, 1);
-    }
 
     template<class Func, class TResult = ValueType>
     TResult reduce(Func&& f, TResult initial_value = TResult{}) const {
@@ -245,7 +234,44 @@ private:
                 typename TensorViewDst::ValueType initial_value = typename TensorViewDst::ValueType{}) {
         static_assert(NumDims == TensorViewDst::NumDims + 1, "Incorrect number of dims of destination tensor");
 
-        ReduceDim<ndim>::impl(std::forward<Func>(f), *this, dst, ndim - axis);
+        dst.assign_(initial_value);
+        ReduceDim<NumDims, NumDims - 1>::impl(std::forward<Func>(f), *this, dst, NumDims - axis);
+    }
+
+    template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
+    auto operator+(const TensorViewRhs& rhs) {
+        return map(std::plus<ValueType>(), rhs);
+    }
+
+    template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
+    Type& operator+=(const TensorViewRhs& rhs) {
+        return map_(std::plus<ValueType>(), rhs);
+    }
+
+    Type& operator*=(ValueType c) {
+        ValueType c_cast = static_cast<ValueType>(c);
+        using namespace std::placeholders;
+        return map_(std::bind(std::multiplies<ValueType>(), c_cast, _1));
+    }
+
+    auto operator*(ValueType c) {
+        ValueType c_cast = static_cast<ValueType>(c);
+        using namespace std::placeholders;
+        return map(std::bind(std::multiplies<ValueType>(), c_cast, _1));
+    }
+
+    friend std::ostream& operator<<<Type>(std::ostream&, const Type&);
+
+private:
+    T* data_ptr_;
+    size_t shape_[ndim];
+    size_t stride_[ndim];
+
+    int deduce_maxw() const {
+        return reduce([](const size_t& a, const ValueType& b) {
+            auto i = print_element(b);
+            return std::max(a, i.size());
+        }, 1);
     }
 };
 
