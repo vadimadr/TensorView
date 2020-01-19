@@ -1,0 +1,20 @@
+get_filename_component(TensorView_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+include(CMakeFindDependencyMacro)
+include(FindPackageHandleStandardArgs)
+
+@PACKAGE_INIT@
+
+list(APPEND CMAKE_MODULE_PATH ${TensorView_CMAKE_DIR})
+
+list(REMOVE_AT CMAKE_MODULE_PATH -1)
+
+if (NOT TARGET TV::TensorView)
+    include("${TensorView_CMAKE_DIR}/TensorViewTargets.cmake")
+endif ()
+
+set(TensorView_LIBRARIES TV::TensorView)
+
+find_package_handle_standard_args(TensorView
+        FOUND_VAR TensorView_FOUND
+        REQUIRED_VARS TensorView_LIBRARIES)
+

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <array>
 #include "Traits.h"
 
 namespace tensor_view {
@@ -78,13 +79,61 @@ bool check_shapes(TensorViewLhs first, TensorViewRhs second) {
     return detail::check_shapes(first, second, broadcast_tag);
 }
 
+template<size_t NumDimsLhs, size_t NumDimsRhs>
+bool shapes_equal(const size_t* shape_lhs, const size_t* shape_rhs) {
+    size_t min_dim = std::min(NumDimsLhs, NumDimsRhs);
+    size_t max_dim = std::max(NumDimsLhs, NumDimsRhs);
+
+    for (int i = 0; i < min_dim; ++i) {
+        if (shape_lhs[NumDimsLhs - i - 1] != shape_rhs[NumDimsRhs - i - 1])
+            return false;
+    }
+    for (int i = min_dim; i < max_dim; ++i) {
+        if (shape_lhs[i] != 1 || shape_rhs[i] != 1)
+            return false;
+    }
+    return true;
+}
+
+
 template<class TensorViewLhs, class TensorViewRhs>
 bool is_trivial_layout(const TensorViewLhs& lhs, const TensorViewRhs& rhs) {
-    return TensorViewLhs::NumDims == TensorViewRhs::NumDims &&
-           lhs.is_contiguous() &&
+    return lhs.is_contiguous() &&
            rhs.is_contiguous() &&
-           std::array<size_t, TensorViewLhs::NumDims>(lhs.shape()) ==
-           std::array<size_t, TensorViewRhs::NumDims>(rhs.shape());
+           shapes_equal<TensorViewLhs::NumDims, TensorViewRhs::NumDims>(lhs.shape(), rhs.shape());
 }
+
+namespace detail {
+template<size_t N>
+struct find_first_trivial_dim {
+    template<class TensorViewLhs, class TensorviewRhs>
+    static size_t impl(const TensorViewLhs& lhs, const TensorviewRhs& rhs) {
+        if (is_trivial_layout(lhs, rhs)) return N;
+        return find_first_trivial_dim<N - 1>::impl(lhs.at(0), rhs.at(0));
+    }
+};
+
+template<>
+struct find_first_trivial_dim<0> {
+    template<class TensorViewLhs, class TensorviewRhs>
+    static size_t impl(const TensorViewLhs& lhs, const TensorviewRhs& rhs) {
+        return 0;
+    }
+};
+
+}
+
+template<class TensorViewLhs, class TensorViewRhs>
+size_t find_first_trivial_dim(const TensorViewLhs& lhs, const TensorViewRhs& rhs) {
+    static_assert(TensorViewLhs::NumDims == TensorViewRhs::NumDims,
+                  "Input tensors must be broadcasted, number of dims should be the same");
+    return detail::find_first_trivial_dim<TensorViewLhs::NumDims>::impl(lhs, rhs);
+}
+
+template<class TTensorViewLhs>
+size_t find_first_trivial_dim(const TTensorViewLhs& lhs) {
+    return detail::find_first_trivial_dim<TTensorViewLhs::NumDims>::impl(lhs, lhs);
+}
+
 
 } // namespace
