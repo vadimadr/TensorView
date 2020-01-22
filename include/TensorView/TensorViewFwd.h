@@ -12,4 +12,7 @@ struct disable_broadcast{};
 template<class T, size_t ndim, class BroadcastPolicy = implicit_broadcast>
 class TensorView;
 
+template<class T, size_t ndim, class BroadcastPolicy = implicit_broadcast>
+class Tensor;
+
 } // namespace

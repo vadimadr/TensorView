@@ -51,13 +51,13 @@ std::string print_element(const T& t) {
 }
 
 
-void print_margin(std::ostream& stream, int margin) {
+inline void print_margin(std::ostream& stream, int margin) {
     for (int j = 0; j < margin; ++j) {
         stream << ' ';
     }
 }
 
-void print_line_breaks(std::ostream& stream, int n) {
+inline  void print_line_breaks(std::ostream& stream, int n) {
     while (n--) stream << '\n';
 }
 

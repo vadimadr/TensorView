@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <iostream>
 #include <numeric>
+#include <functional>
 
 #include "Dims.h"
 #include "TensorViewFwd.h"
@@ -27,13 +28,13 @@ public:
 
     TensorView() : data_ptr_(nullptr) {}
 
-    TensorView(T* data_ptr, const size_t shape[ndim]) :
+    TensorView(T* data_ptr, const size_t* shape) :
             data_ptr_(data_ptr) {
         std::copy(shape, shape + ndim, shape_);
         calculate_strides(shape_, stride_, ndim);
     }
 
-    TensorView(T* data_ptr, const size_t shape[ndim], const size_t stride[ndim]) :
+    TensorView(T* data_ptr, const size_t* shape, const size_t* stride) :
             data_ptr_(data_ptr) {
         std::copy(shape, shape + ndim, shape_);
         std::copy(stride, stride + ndim, stride_);
@@ -108,7 +109,7 @@ public:
     }
 
     template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
-    void assign_(TensorViewRhs rhs) {
+    void assign_(const TensorViewRhs& rhs) {
         ElementWiseInplaceOp<Type, TensorViewRhs>::impl([&rhs](auto& a, auto& b) {
             return b;
         }, *this, rhs);
@@ -119,10 +120,10 @@ public:
     }
 
     template<class... Ts>
-    Type permute(Ts... ts) {
+    Type permute(Ts... ts) const {
         static_assert(sizeof...(Ts) == NumDims, "Number of arguments to permute function must be NumDims");
 
-        std::array<size_t, NumDims> permute_inds{{ts...}};
+        std::array<size_t, NumDims> permute_inds{{static_cast<size_t>(ts)...}};
         std::array<size_t, NumDims> shape;
         std::array<size_t, NumDims> strides;
 
@@ -162,6 +163,19 @@ public:
         return {data_ptr_, shape_post.data()};
     }
 
+    TensorView<ValueType, NumDims + 1, BroadcastPolicy> unsqueeze(size_t dim = NumDims - 1) {
+        TV_ASSERT(is_contiguous(), "Tensor for unsqueeze must be contiguous")
+        size_t new_dims[NumDims + 1];
+        for (int i = 0; i < dim; ++i) {
+            new_dims[i] = size(i);
+        }
+        for (int j = dim + 1; j < NumDims + 1; ++j) {
+            new_dims[j] = size(j - 1);
+        }
+        new_dims[dim] = 1;
+        return {data_ptr_, new_dims};
+    }
+
 
     ShapeType stride() const {
         return stride_;
@@ -195,6 +209,22 @@ public:
         const ValueType& (& max_fn)(const ValueType&, const ValueType&) = std::max<ValueType>;
         return reduce(max_fn);
     }
+
+    template<class TensorViewDst, enable_if_t<is_tensor_view_v<TensorViewDst>, int> = 0>
+    auto max(TensorViewDst& dst, size_t axis) const {
+        const ValueType& (& max_fn)(const ValueType&, const ValueType&) = std::max<ValueType>;
+        return reduce(max_fn, dst, axis, std::numeric_limits<typename TensorViewDst::ValueType>::min());
+    }
+
+    ValueType sum() const {
+        return reduce(std::plus<ValueType>());
+    }
+
+    template<class TensorViewDst, enable_if_t<is_tensor_view_v<TensorViewDst>, int> = 0>
+    auto sum(TensorViewDst& dst, size_t axis) {
+        return reduce(std::plus<typename TensorViewDst::ValueType>(), dst, axis, 0);
+    }
+
 
     template<class Func>
     Type& map_(Func&& f) {
@@ -233,7 +263,7 @@ public:
                 size_t axis,
                 typename TensorViewDst::ValueType initial_value = typename TensorViewDst::ValueType{}) const {
         static_assert(NumDims == TensorViewDst::NumDims + 1, "Incorrect number of dims of destination tensor");
-
+        // todo: check shapes (all but `axis` must be the same)
         dst.assign_(initial_value);
         ReduceDim<NumDims, NumDims - 1>::impl(std::forward<Func>(f), *this, dst, NumDims - axis);
     }
@@ -254,10 +284,26 @@ public:
         return map_(std::plus<ValueType>(), rhs);
     }
 
+    template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
+    Type& operator/=(const TensorViewRhs& rhs) {
+        return map_(std::divides<ValueType>(), rhs);
+    }
+
+    template<class TensorViewRhs, enable_if_t<is_tensor_view_v<TensorViewRhs>, int> = 0>
+    Type& operator-=(const TensorViewRhs& rhs) {
+        return map_(std::minus<ValueType>(), rhs);
+    }
+
     Type& operator*=(ValueType c) {
         ValueType c_cast = static_cast<ValueType>(c);
         using namespace std::placeholders;
         return map_(std::bind(std::multiplies<ValueType>(), c_cast, _1));
+    }
+
+    Type& operator/=(ValueType c) {
+        ValueType c_cast = static_cast<ValueType>(c);
+        using namespace std::placeholders;
+        return map_(std::bind(std::divides<ValueType>(), c_cast, _1));
     }
 
     auto operator*(ValueType c) {
@@ -268,7 +314,7 @@ public:
 
     friend std::ostream& operator<<<Type>(std::ostream&, const Type&);
 
-private:
+protected:
     T* data_ptr_;
     size_t shape_[ndim];
     size_t stride_[ndim];
@@ -290,6 +336,15 @@ TensorView<T, ndim> make_view(T* data, U (&& shape)[ndim]) {
     }
     return TensorView<T, ndim>(data, shape_);
 }
+
+/*template<class T, size_t ndim, class U>
+const TensorView<T, ndim> make_view(const T* data, U (&& shape)[ndim]) {
+    size_t shape_[ndim];
+    for (int i = 0; i < ndim; ++i) {
+        shape_[i] = static_cast<size_t>(shape[i]);
+    }
+    return TensorView<T, ndim>(data, shape_);
+}*/
 
 template<class TTensorView, std::enable_if_t<is_tensor_view_v<TTensorView>, int> = 0>
 std::ostream& operator<<(std::ostream& stream, const TTensorView& t) {

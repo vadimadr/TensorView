@@ -6,6 +6,7 @@
 #include "gmock/gmock.h"
 
 #include "TensorView/TensorView.h"
+#include "TensorView/Tensor.h"
 
 
 template<class TTensorView>
@@ -429,6 +430,27 @@ TEST_F(ReduceOperation, reduce_axis1_sum_deferred) {
     std::vector<float> data_expected = {2, 4, 10, 12, 18, 20};
     EXPECT_THAT(dst_data, ElementsAreArray(data_expected));
 }
+
+
+class OwningTensor : public testing::Test {
+};
+
+TEST_F(OwningTensor, create_constructor_parameter_pack) {
+    Tensor<float, 3> tensor(4,5,6);
+
+    EXPECT_THAT(tensor.size(0), Eq(4));
+    EXPECT_THAT(tensor.size(1), Eq(5));
+    EXPECT_THAT(tensor.size(2), Eq(6));
+}
+TEST_F(OwningTensor, create_constructor_array) {
+    size_t shape[] = {4,5,6};
+    Tensor<float, 3> tensor(shape);
+
+    EXPECT_THAT(tensor.size(0), Eq(4));
+    EXPECT_THAT(tensor.size(1), Eq(5));
+    EXPECT_THAT(tensor.size(2), Eq(6));
+}
+
 
 
 }

@@ -1,11 +1,9 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.10)
 project(TensorView)
 
 option(BUILD_TESTS "Build Google Test" ON)
 
 set(CMAKE_CXX_STANDARD 14)
-
-find_package(Boost REQUIRED)
 
 set(TV_SOURCES
         TensorView/Traits.h
@@ -22,10 +20,6 @@ add_library(TensorView INTERFACE)
 target_include_directories(TensorView INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
-
-add_executable(10sor main.cpp)
-target_link_libraries(10sor PRIVATE TensorView)
-target_include_directories(10sor PRIVATE Boost)
 
 if (BUILD_TESTS)
     enable_testing()

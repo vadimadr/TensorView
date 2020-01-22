@@ -24,7 +24,7 @@ public:
     }
 };
 
-void calculate_strides(const size_t* shapes, size_t* strides, size_t ndim) {
+inline void calculate_strides(const size_t* shapes, size_t* strides, size_t ndim) {
     size_t prod = 1;
     for (int i = ndim - 1; i >= 0; --i) {
         strides[i] = prod;

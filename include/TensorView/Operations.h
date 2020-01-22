@@ -16,7 +16,7 @@ class BroadcastTensors {
 
     static constexpr size_t ResultNdims = std::max(LhsType::NumDims, RhsType::NumDims);
 public:
-    using ResultType = TensorView<typename LhsType::ValueType, ResultNdims, explicit_broadcast>;
+    using ResultType = TensorView<typename TensorViewRhs::ValueType, ResultNdims, explicit_broadcast>;
 
     static ResultType impl(TensorViewLhs first, TensorViewRhs second) {
         size_t shape[ResultNdims];
