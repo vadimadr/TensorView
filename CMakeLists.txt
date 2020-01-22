@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(TensorView)
 
-option(BUILD_TESTS "Build Google Test" ON)
+option(BUILD_TESTS "Build Google Test" OFF)
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -25,7 +25,7 @@ if (BUILD_TESTS)
     enable_testing()
     include(GoogleTest)
     add_subdirectory(tests)
-endif()
+endif ()
 
 # Installation
 include(GNUInstallDirs)
