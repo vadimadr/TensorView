@@ -10,6 +10,7 @@ For usage examples please see tests.
 
 Example:
 ```c++
+using namespace tensor_view;
 float* buffer = .... // ptr to some buffer with known size
 auto view = make_view(buffer, {16, 3, 256, 256});
 
@@ -19,7 +20,7 @@ auto subview  = view.at(0, 1); // creating sub-views
 std::cout << subview; // print data in sub-view
 float max_val = subview.max(); 
 subview.map_([](float x) { return x * x; }); // transforming data
-float product = subview.reduce([](float x, float y) { x * y; }, /*initial=*/ 1.);
+float product = subview.reduce([](float x, float y) { return x * y; }, /*initial=*/ 1.);
 
 view.assign_(0); // filling data
 ```
