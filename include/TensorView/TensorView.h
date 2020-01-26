@@ -346,7 +346,7 @@ const TensorView<T, ndim> make_view(const T* data, U (&& shape)[ndim]) {
     return TensorView<T, ndim>(data, shape_);
 }*/
 
-template<class TTensorView, std::enable_if_t<is_tensor_view_v<TTensorView>, int> = 0>
+template<class TTensorView, std::enable_if_t<is_tensor_view_v<TTensorView>, int>>
 std::ostream& operator<<(std::ostream& stream, const TTensorView& t) {
     const size_t ndim = TTensorView::NumDims;
 
@@ -359,5 +359,8 @@ std::ostream& operator<<(std::ostream& stream, const TTensorView& t) {
     TensorPrinter<ndim>::print(stream, t, 1, maxw);
     stream << '\n';
 }
+
+template<class T, size_t ndim, class BroadcastPolicy>
+constexpr const size_t TensorView<T, ndim, BroadcastPolicy>::NumDims;
 
 } // namespace

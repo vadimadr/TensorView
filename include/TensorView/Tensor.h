@@ -31,7 +31,7 @@ class Tensor : public TensorView<T, ndim, BroadcastPolicy> {
 public:
     template<typename ...TDims, std::enable_if_t<sizeof...(TDims) == ndim, int> = 0>
     Tensor(TDims... dims) : data_(product(dims...)) {
-        std::array<size_t, ndim> a_dims{{static_cast<size_t>(dims)Cm    ...}};
+        std::array<size_t, ndim> a_dims{{static_cast<size_t>(dims)...}};
         std::copy(a_dims.begin(), a_dims.end(), this->shape_);
         calculate_strides(this->shape_, this->stride_, ndim);
     }
